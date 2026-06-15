@@ -28,7 +28,13 @@ socket.on('question', (q) => {
     updateTimer();
     
     document.getElementById('correctAnswer').style.display = 'none';
-    document.getElementById('correctAnswer').innerHTML = '';
+    document.getElementById('correctAnswer').const el = document.getElementById('correctAnswer');
+
+el.style.display = 'block';
+el.innerHTML = `
+    <div class="answerLabel">CORRECT ANSWER</div>
+    <div class="answerMain">${currentQuestion.answer}</div>
+`; = '';
 });
 
 socket.on('gameStarted', (data) => {
