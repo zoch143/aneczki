@@ -198,8 +198,13 @@ io.on("connection", (socket) => {
         const responseMs = receivedAt - currentQuestion.startTime;
 
         function normalize(s) {
-            return String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
-        }
+    return String(s || '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/[^\w\s]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
 
         function levenshtein(a, b) {
             if (a.length === 0) return b.length;
@@ -222,6 +227,20 @@ io.on("connection", (socket) => {
             }
             return matrix[b.length][a.length];
         }
+        function wordScore(given, expected) {
+    const givenWords = new Set(given.split(" "));
+    const expectedWords = expected.split(" ");
+
+    let matchCount = 0;
+
+    for (const word of expectedWords) {
+        if (givenWords.has(word)) {
+            matchCount++;
+        }
+    }
+
+    return matchCount / expectedWords.length;
+}
 
         const given = normalize(answer);
         const expected = normalize(currentQuestion.answer);
@@ -234,22 +253,25 @@ io.on("connection", (socket) => {
             const timeBonus = Math.max(0, 100 - Math.floor(responseMs / 50));
             points = 100 + timeBonus;
             correct = true;
-        } else if (expected && given) {
-            const distance = levenshtein(given, expected);
-            const similarity = 1 - (distance / Math.max(given.length, expected.length));
-            
-            // Allow up to 2 character typos if similarity > 0.85
-            if (similarity > 0.85) {
-                const timeBonus = Math.max(0, 75 - Math.floor(responseMs / 75));
-                points = Math.floor(75 + timeBonus);
-                correct = true;
-            } else if (expected.includes(given) || given.includes(expected)) {
-                // Partial match
-                const timeBonus = Math.max(0, 40 - Math.floor(responseMs / 100));
-                points = Math.max(1, 40 + timeBonus);
-                correct = true;
-            }
+        }} else if (expected && given) {
+    const distance = levenshtein(given, expected);
+    const similarity = 1 - (distance / Math.max(given.length, expected.length));
+
+    if (similarity > 0.85) {
+        const timeBonus = Math.max(0, 75 - Math.floor(responseMs / 75));
+        points = Math.floor(75 + timeBonus);
+        correct = true;
+    } else {
+        const overlap = wordScore(given, expected);
+
+        if (overlap >= 0.3) {
+            const timeBonus = Math.max(0, 40 - Math.floor(responseMs / 100));
+
+            points = Math.floor(overlap * 60 + timeBonus);
+            correct = true;
         }
+    }
+}
 
         answersReceived[name] = true;
         if (points > 0) {
@@ -366,5 +388,5 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
-    console.log(`Server running on ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
