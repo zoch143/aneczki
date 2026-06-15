@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Host</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Georgia', serif; 
+            background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 100%);
+            min-height: 100vh;
+            padding: 30px 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #be185d; font-size: 32px; margin-bottom: 30px; font-weight: 400; letter-spacing: 1px; }
+        #preGameArea { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 20px; 
+            box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15);
+        }
+        #preGameArea.hidden { display: none; }
+        .section { margin-bottom: 30px; }
+        .section-title { color: #a78bfa; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; }
+        input[type="file"], input[type="number"], input[type="text"] { 
+            padding: 12px 16px; 
+            border: 2px solid #fce7f3;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: 'Georgia', serif;
+            margin: 8px 0;
+            background: #faf5ff;
+            color: #831843;
+            width: 100%;
+            max-width: 400px;
+        }
+        input:focus { 
+            outline: none; 
+            border-color: #ec4899;
+            background: #fff;
+        }
+        button { 
+            background: linear-gradient(135deg, #ec4899 0%, #d946a6 100%);
+            color: white; 
+            border: none; 
+            padding: 12px 28px; 
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-family: 'Georgia', serif;
+            margin: 8px 12px 8px 0;
+        }
+        button:hover:not(:disabled) { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(236, 72, 153, 0.3);
+        }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .secondary-btn {
+            background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%);
+        }
+        .danger-btn {
+            background: linear-gradient(135deg, #fb7185 0%, #f43f5e 100%);
+        }
+        #gameArea { 
+            display: none; 
+            background: white; 
+            padding: 40px; 
+            border-radius: 20px; 
+            box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15);
+        }
+        #gameArea.active { display: block; }
+        #currentQuestion { 
+            font-size: 36px; 
+            margin: 30px 0; 
+            color: #831843; 
+            line-height: 1.6;
+            font-weight: 500;
+        }
+        #timer { 
+            font-size: 64px; 
+            color: #ec4899; 
+            margin: 30px 0; 
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+            text-align: center;
+        }
+        #board { 
+            background: #faf5ff; 
+            padding: 25px; 
+            border-radius: 12px; 
+            margin: 25px 0;
+            border-left: 4px solid #ec4899;
+        }
+        #board p { 
+            margin: 12px 0; 
+            font-size: 16px; 
+            color: #831843;
+        }
+        #correctAnswer { 
+            background: #fce7f3; 
+            color: #be185d; 
+            padding: 20px; 
+            border-radius: 12px; 
+            margin: 25px 0; 
+            display: none;
+            border-left: 4px solid #ec4899;
+            font-weight: 500;
+        }
+        .status-text { 
+            color: #a78bfa; 
+            font-size: 14px; 
+            margin: 10px 0;
+            font-style: italic;
+        }
+        #playerCount { 
+            color: #a78bfa; 
+            font-size: 14px; 
+            margin: 10px 0;
+        }
+        .flex { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>✦ anki.party host ✦</h1>
+
+        <div id="preGameArea">
+            <div class="section">
+                <div class="section-title">‧₊˚ ⋅ upload deck</div>
+                <input id="deckFile" type="file" accept=".apkg,.zip,.txt,.csv">
+                <button id="uploadBtn" onclick="uploadDeck()">Upload Deck</button>
+                <div id="uploadStatus" class="status-text"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">⋅ settings</div>
+                <div class="flex">
+                    <div>
+                        <label style="color:#831843; font-size:14px;">Time per question (seconds)</label>
+                        <input id="timeLimit" type="number" value="40" min="5" max="300">
+                    </div>
+                </div>
+                <div id="playerCount" style="margin-top:15px;"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">⋅ manage</div>
+                <button id="startBtn" onclick="startGame()">Start Game</button>
+                <button class="danger-btn" onclick="clearLeaderboard()">Clear Leaderboard</button>
+                <div id="gameStatus" class="status-text"></div>
+            </div>
+        </div>
+
+        <div id="gameArea">
+            <button class="secondary-btn" onclick="goBackToSetup()">← Back to Setup</button>
+            <div id="currentQuestion"></div>
+            <div id="timer"></div>
+            <button onclick="nextQuestion()">Next Question</button>
+            <div id="board"></div>
+            <div id="correctAnswer"></div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="host.js"></script>
+</body>
+</html>

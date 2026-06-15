@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Player</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Georgia', serif; 
+            background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container { max-width: 600px; width: 90%; }
+        #joinArea { 
+            background: white; 
+            padding: 50px 40px; 
+            border-radius: 20px; 
+            box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15);
+            text-align: center;
+        }
+        #joinArea h1 { 
+            color: #be185d; 
+            font-size: 28px; 
+            margin-bottom: 10px;
+            font-weight: 400;
+            letter-spacing: 1px;
+        }
+        #joinArea .subtitle { 
+            color: #a78bfa; 
+            font-size: 14px; 
+            margin-bottom: 30px;
+        }
+        #gameArea { display: none; }
+        #gameArea.active { display: block; }
+        #joinArea.hidden { display: none; }
+        #name, #answerInput { 
+            width: 100%; 
+            padding: 14px 18px; 
+            border: 2px solid #fce7f3;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: 'Georgia', serif;
+            margin: 12px 0;
+            background: #faf5ff;
+            color: #831843;
+            transition: border-color 0.3s;
+        }
+        #name:focus, #answerInput:focus { 
+            outline: none; 
+            border-color: #ec4899;
+            background: #fff;
+        }
+        button { 
+            background: linear-gradient(135deg, #ec4899 0%, #d946a6 100%);
+            color: white; 
+            border: none; 
+            padding: 12px 28px; 
+            border-radius: 10px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-family: 'Georgia', serif;
+            margin-top: 12px;
+            width: 100%;
+        }
+        button:hover:not(:disabled) { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(236, 72, 153, 0.3);
+        }
+        button:disabled { 
+            opacity: 0.6; 
+            cursor: not-allowed;
+        }
+        #gameArea {
+            background: white;
+            padding: 60px 40px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15);
+            text-align: center;
+        }
+        #gameArea h1 {
+            color: #be185d;
+            font-size: 22px;
+            margin-bottom: 20px;
+            font-weight: 400;
+            letter-spacing: 1px;
+        }
+        #questionText { 
+            font-size: 32px; 
+            margin: 30px 0; 
+            color: #831843; 
+            line-height: 1.6;
+            font-weight: 500;
+        }
+        #playerTimer { 
+            font-size: 56px; 
+            color: #ec4899; 
+            margin: 25px 0; 
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+        }
+        #feedback { 
+            margin-top: 25px; 
+            padding: 20px; 
+            border-radius: 12px; 
+            display: none; 
+            font-size: 15px;
+        }
+        #playerScore { 
+            font-size: 18px; 
+            color: #a78bfa; 
+            margin-top: 30px;
+            font-style: italic;
+        }
+        .symbol { opacity: 0.6; }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="joinArea">
+            <h1>✦ anki.party ✦</h1>
+            <div class="subtitle">‧₊˚ ⋅ enter your name</div>
+            <input id="name" placeholder="Your name" type="text">
+            <button onclick="join()">Join Game</button>
+        </div>
+
+        <div id="gameArea" class="game-view">
+            <h1>✦ Question ✦</h1>
+            <div id="questionText"></div>
+            <div id="playerTimer"></div>
+            <input id="answerInput" placeholder="Your answer" type="text">
+            <button id="submitBtn" onclick="send()">Submit Answer</button>
+            <div id="feedback"></div>
+            <div id="playerScore"><span class="symbol">♡</span> Score: <span id="playerScoreValue">0</span></div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="player.js"></script>
+</body>
+</html>
