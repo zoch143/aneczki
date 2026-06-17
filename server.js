@@ -340,4 +340,4 @@ function sendFinalLeaderboard(roomCode) {
 }
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Serwer Anki Smart Engine działa na porcie ${PORT} 🚀`));
+server.listen(PORT, () => console.log(`Serwer działa na porcie ${PORT} 🚀`));
