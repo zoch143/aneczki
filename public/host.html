@@ -1,174 +1,162 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Host</title>
+    <title>Anki Party - Host Panel 👑</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
-            font-family: 'Georgia', serif; 
-            background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 100%);
-            min-height: 100vh;
-            padding: 30px 20px;
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            background: linear-gradient(135deg, #fff1f2 0%, #faf5ff 100%);
+            min-height: 100vh; padding: 40px 20px; color: #4c0519;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #be185d; font-size: 32px; margin-bottom: 30px; font-weight: 400; letter-spacing: 1px; }
-        #preGameArea { 
-            background: white; 
-            padding: 40px; 
-            border-radius: 20px; 
-            box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15);
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { color: #db2777; font-size: 2.5rem; margin-bottom: 30px; font-weight: 700; text-align: center; }
+        
+        .top-bar {
+            background: white; padding: 12px 24px; border-radius: 50px; display: inline-block;
+            margin-bottom: 30px; color: #db2777; font-weight: 600; box-shadow: 0 4px 20px rgba(219, 39, 119, 0.08); border: 1px solid #fce7f3;
         }
-        #preGameArea.hidden { display: none; }
-        .section { margin-bottom: 30px; }
-        .section-title { color: #a78bfa; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; }
-        input[type="file"], input[type="number"], input[type="text"] { 
-            padding: 12px 16px; 
-            border: 2px solid #fce7f3;
-            border-radius: 12px;
-            font-size: 14px;
-            font-family: 'Georgia', serif;
-            margin: 8px 0;
-            background: #faf5ff;
-            color: #831843;
-            width: 100%;
-            max-width: 400px;
-        }
-        input:focus { 
-            outline: none; 
-            border-color: #ec4899;
-            background: #fff;
-        }
-        button { 
-            background: linear-gradient(135deg, #ec4899 0%, #d946a6 100%);
-            color: white; 
-            border: none; 
-            padding: 12px 28px; 
-            border-radius: 10px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            font-family: 'Georgia', serif;
-            margin: 8px 12px 8px 0;
-        }
-        button:hover:not(:disabled) { 
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(236, 72, 153, 0.3);
-        }
-        button:disabled { opacity: 0.6; cursor: not-allowed; }
-        .secondary-btn {
-            background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%);
-        }
-        .danger-btn {
-            background: linear-gradient(135deg, #fb7185 0%, #f43f5e 100%);
-        }
-        #gameArea { 
-            display: none; 
-            background: white; 
-            padding: 40px; 
-            border-radius: 20px; 
-            box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15);
-        }
-        #gameArea.active { display: block; }
-        #currentQuestion { 
-            font-size: 36px; 
-            margin: 30px 0; 
-            color: #831843; 
-            line-height: 1.6;
-            font-weight: 500;
-        }
-        #timer { 
-            font-size: 50px; 
-            color: #ec4899; 
-            margin: 30px 0; 
-            font-weight: 700;
-            font-family: 'Courier New', monospace;
-            text-align: center;
-        }
-        #board { 
-            background: #faf5ff; 
-            padding: 25px; 
-            border-radius: 12px; 
-            margin: 25px 0;
-            border-left: 4px solid #ec4899;
-        }
-        #board p { 
-            margin: 12px 0; 
-            font-size: 16px; 
-            color: #831843;
-        }
-       #correctAnswer { 
-    background: #fce7f3; 
-    color: #be185d; 
-    padding: 35px 30px; 
-    border-radius: 16px; 
-    margin: 30px 0; 
-    display: none;
-    border-left: 6px solid #ec4899;
-    
-    font-weight: 600;
+        #roomCodeDisplay { color: #7c3aed; font-family: 'Courier New', monospace; font-size: 1.3rem; letter-spacing: 2px; margin-left: 5px; }
+        .progress-badge { background: #fff5f8; color: #db2777; padding: 10px 24px; border-radius: 50px; font-size: 14px; font-weight: 700; border: 2px dashed #fbcfe8; display: inline-block; margin-bottom: 20px; }
 
-    /* 🔥 make it BIG */
-    font-size: 2.2rem;
-    line-height: 1.4;
+        .main-card { background: white; padding: 40px; border-radius: 32px; box-shadow: 0 20px 50px rgba(219, 39, 119, 0.06); border: 1px solid rgba(253, 242, 248, 0.5); }
+        
+        #preGameArea.hidden, #gameArea.hidden, #endGameArea.hidden { display: none; }
+        #gameArea, #endGameArea { display: none; text-align: center; }
+        #gameArea.active, #endGameArea.active { display: block; animation: fadeIn 0.5s ease; }
 
-    /* optional but makes it feel “game-like” */
-    text-align: center;
-    box-shadow: 0 10px 30px rgba(236, 72, 153, 0.15);
-}
-        }
-        .status-text { 
-            color: #a78bfa; 
-            font-size: 14px; 
-            margin: 10px 0;
-            font-style: italic;
-        }
-        #playerCount { 
-            color: #a78bfa; 
-            font-size: 14px; 
-            margin: 10px 0;
-        }
-        .flex { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .section { margin-bottom: 35px; text-align: left; }
+        .section-title { color: #c084fc; font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 15px; font-weight: 700; }
+        
+        input[type="file"], input[type="number"], select { padding: 14px 20px; border: 2px solid #fce7f3; border-radius: 16px; font-size: 15px; margin: 8px 0; background: #fff5f8; color: #9d174d; width: 100%; max-width: 400px; display: block; }
+        input:focus, select:focus { outline: none; border-color: #f472b6; background: #fff; box-shadow: 0 0 0 4px rgba(244, 114, 182, 0.15); }
+        
+        button { background: linear-gradient(135deg, #f472b6 0%, #db2777 100%); color: white; border: none; padding: 14px 32px; border-radius: 16px; font-size: 15px; cursor: pointer; transition: all 0.3s ease; margin: 8px 12px 8px 0; font-weight: 700; box-shadow: 0 8px 20px rgba(219, 39, 119, 0.15); }
+        button:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 12px 25px rgba(219, 39, 119, 0.25); }
+        button:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+        
+        .secondary-btn { background: linear-gradient(135deg, #c084fc 0%, #a855f7 100%); }
+        .danger-btn { background: linear-gradient(135deg, #fca5a5 0%, #f87171 100%); }
+        .stop-btn { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
+        
+        .abort-btn { background: none; color: #f87171; box-shadow: none; font-size: 12px; padding: 5px 10px; margin-top: 40px; opacity: 0.6; display: inline-block; border-bottom: 1px dashed #fca5a5; border-radius: 0; }
+        .abort-btn:hover { opacity: 1; color: #ef4444; }
+
+        #currentQuestion { font-size: 2.2rem; margin: 20px 0; color: #881337; font-weight: 600; }
+        
+        /* 🔬 POPRAWIONY KONTENER NA SZPILKI */
+        .q-image-container { max-width: 100%; margin: 20px auto; display: none; border-radius: 20px; overflow: hidden; border: 3px solid #fce7f3; box-shadow: 0 8px 25px rgba(0,0,0,0.05); background: #fff; }
+        .q-image-container img { max-width: 100%; max-height: 400px; display: block; margin: 0 auto; object-fit: contain; }
+
+        #timer { font-size: 3.5rem; color: #db2777; font-weight: 800; background: #fff5f8; padding: 12px 45px; border-radius: 50px; border: 2px solid #fbcfe8; display: inline-block; min-width: 200px; }
+        .timer-low { color: #ef4444 !important; border-color: #fca5a5 !important; background: #fef2f2 !important; animation: pulse 1s infinite; }
+
+        #correctAnswer { background: linear-gradient(135deg, #fff5f8 0%, #faf5ff 100%); color: #be185d; padding: 40px; border-radius: 24px; margin: 35px 0; display: none; border: 3px dashed #f472b6; font-weight: 700; font-size: 2.5rem; box-shadow: 0 20px 45px rgba(219, 39, 119, 0.12); animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        #correctAnswer small { display: block; font-size: 11px; text-transform: uppercase; color: #a855f7; letter-spacing: 2px; margin-bottom: 12px; font-weight: 800; }
+
+        #board { background: #faf5ff; padding: 25px; border-radius: 24px; margin: 35px 0; border-left: 6px solid #c084fc; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+        .leaderboard-row { display: flex; justify-content: space-between; align-items: center; background: white; padding: 14px 20px; border-radius: 14px; box-shadow: 0 4px 10px rgba(168, 85, 247, 0.03); border: 1px solid #f3e8ff; }
+        .p-meta { display: flex; align-items: center; gap: 10px; font-weight: 600; color: #581c87; }
+        .p-streak { background: #ef4444; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+        .player-score { font-weight: 700; color: #a855f7; background: #faf5ff; padding: 4px 12px; border-radius: 20px; }
+
+        .podium-container { display: flex; justify-content: center; align-items: flex-end; gap: 15px; margin: 50px 0 30px 0; height: 260px; }
+        .podium-block { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-radius: 20px 20px 0 0; font-weight: bold; width: 130px; animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0; }
+        .podium-block .p-name { font-size: 16px; margin-bottom: 8px; color: #4c0519; text-align: center; }
+        .podium-block .p-score { font-size: 13px; opacity: 0.7; margin-bottom: 15px; }
+        .podium-block .p-rank { font-size: 2.5rem; margin-bottom: 10px; }
+        .podium-1 { background: linear-gradient(to top, #fbcfe8, #fdf2f8); height: 100%; border: 3px solid #f472b6; animation-delay: 0.4s !important; }
+        .podium-1 .p-rank { color: #db2777; }
+        .podium-2 { background: linear-gradient(to top, #e9d5ff, #faf5ff); height: 75%; border: 3px solid #c084fc; animation-delay: 0.2s !important; }
+        .podium-2 .p-rank { color: #7c3aed; }
+        .podium-3 { background: linear-gradient(to top, #fed7aa, #fff7ed); height: 55%; border: 3px solid #fb923c; animation-delay: 0s !important; }
+        .podium-3 .p-rank { color: #ea580c; }
+
+        .final-list { background: #faf5ff; padding: 20px; border-radius: 20px; text-align: left; max-width: 500px; margin: 20px auto; }
+        .flex { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 220px; text-align: left; }
+        .controls-row { display: flex; justify-content: center; gap: 15px; margin-top: 25px; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.04); } 100% { transform: scale(1); } }
+        @keyframes popIn { 0% { transform: scale(0.85); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-
 <body>
     <div class="container">
-        <h1>✦ anki.party host ✦</h1>
-
-        <div id="preGameArea">
-            <div class="section">
-                <div class="section-title">‧₊˚ ⋅ upload deck</div>
-                <input id="deckFile" type="file" accept=".apkg,.zip,.txt,.csv">
-                <button id="uploadBtn" onclick="uploadDeck()">Upload Deck</button>
-                <div id="uploadStatus" class="status-text"></div>
-            </div>
-
-            <div class="section">
-                <div class="section-title">⋅ settings</div>
-                <div class="flex">
-                    <div>
-                        <label style="color:#831843; font-size:14px;">Time per question (seconds)</label>
-                        <input id="timeLimit" type="number" value="40" min="5" max="300">
-                    </div>
-                </div>
-                <div id="playerCount" style="margin-top:15px;"></div>
-            </div>
-
-            <div class="section">
-                <div class="section-title">⋅ manage</div>
-                <button id="startBtn" onclick="startGame()">Start Game</button>
-                <button class="danger-btn" onclick="clearLeaderboard()">Clear Leaderboard</button>
-                <div id="gameStatus" class="status-text"></div>
-            </div>
+        <div class="top-bar">
+            (ᐢ • 𓂏 • ᐢ) Room Code: <span id="roomCodeDisplay">Generating...</span>
         </div>
 
-        <div id="gameArea">
-            <button class="secondary-btn" onclick="goBackToSetup()">← Back to Setup</button>
-            <div id="currentQuestion"></div>
-            <div id="timer"></div>
-            <button onclick="nextQuestion()">Next Question</button>
-            <div id="board"></div>
-            <div id="correctAnswer"></div>
+        <h1>🌸 anki.party host 🌸</h1>
+
+        <div class="main-card">
+            <div id="preGameArea">
+                <div class="section">
+                    <div class="section-title">📦 ₊˚ Loader • upload deck</div>
+                    <input id="deckFile" type="file" accept=".apkg,.zip,.txt,.csv">
+                    <button id="uploadBtn" onclick="uploadDeck()">Upload Deck 💾</button>
+                    <div id="uploadStatus" class="status-text"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">⚙️ ₊˚ Config • settings</div>
+                    <div class="flex">
+                        <div class="form-group">
+                            <label for="timeLimit" style="color:#9d174d; font-size:14px; font-weight: 600;">⏱️ Time per card (sec)</label>
+                            <input id="timeLimit" type="number" value="40" min="5" max="300">
+                        </div>
+                        <div class="form-group">
+                            <label for="maxQuestions" style="color:#9d174d; font-size:14px; font-weight: 600;">🔢 Max questions</label>
+                            <input id="maxQuestions" type="number" value="20" min="1" max="200">
+                        </div>
+                        <div class="form-group">
+                            <label for="gameMode" style="color:#9d174d; font-size:14px; font-weight: 600;">🎮 Match Mode</label>
+                            <select id="gameMode">
+                                <option value="classic">Classic Mode 📝</option>
+                                <option value="vocab">Vocabulary Mode 🔤</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="playerCount" style="margin-top:15px;"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">🚀 ₊˚ Actions • manage</div>
+                    <button id="startBtn" onclick="startGame()">Start Game (っ•ᴗ•)っ</button>
+                    <div id="gameStatus" class="status-text"></div>
+                </div>
+            </div>
+
+            <div id="gameArea">
+                <div id="progressBadge" class="progress-badge">🌸 0/0 answered</div>
+                <br>
+                
+                <div class="timer-container">
+                    <div id="timer">40s</div>
+                </div>
+
+                <div id="qImageContainer" class="q-image-container">
+                    <img id="qImage" alt="Fiszka">
+                </div>
+
+                <div id="currentQuestion"></div>
+                <div id="correctAnswer"></div>
+
+                <div class="controls-row">
+                    <button id="stopBtn" class="stop-btn" onclick="stopQuestion()">Stop & Ujawnij 🛑</button>
+                    <button id="nextBtn" onclick="nextQuestion()">Next Card → ✨</button>
+                </div>
+                
+                <div id="board"></div>
+                <button class="abort-btn" onclick="forceEndGame()">✨ Ręcznie zakończ grę i pokaż podium</button>
+            </div>
+
+            <div id="endGameArea">
+                <h2>👑 MATCH OVER! 👑</h2>
+                <div class="podium-container" id="podiumVisual"></div>
+                <div class="final-list" id="finalFullLeaderboard"></div>
+                <button class="secondary-btn" onclick="window.location.reload()" style="margin-top: 20px;">Nowy pokój 🔄</button>
+            </div>
         </div>
     </div>
 

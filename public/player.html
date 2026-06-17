@@ -1,140 +1,80 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Player</title>
+    <title>Player Panel ✨</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
-            font-family: 'Georgia', serif; 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
             background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
         }
         .container { max-width: 600px; width: 90%; }
-        #joinArea { 
-            background: white; 
-            padding: 50px 40px; 
-            border-radius: 20px; 
-            box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15);
-            text-align: center;
-        }
-        #joinArea h1 { 
-            color: #be185d; 
-            font-size: 28px; 
-            margin-bottom: 10px;
-            font-weight: 400;
-            letter-spacing: 1px;
-        }
-        #joinArea .subtitle { 
-            color: #a78bfa; 
-            font-size: 14px; 
-            margin-bottom: 30px;
-        }
-        #gameArea { display: none; }
+        
+        #joinArea { background: white; padding: 50px 40px; border-radius: 24px; box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15); text-align: center; }
+        #joinArea h1 { color: #be185d; font-size: 28px; margin-bottom: 5px; font-weight: 700; }
+        #joinArea .subtitle { color: #a78bfa; font-size: 14px; margin-bottom: 25px; }
+        
+        #gameArea { display: none; background: white; padding: 50px 40px; border-radius: 24px; box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15); text-align: center; }
         #gameArea.active { display: block; }
         #joinArea.hidden { display: none; }
-        #name, #answerInput { 
-            width: 100%; 
-            padding: 14px 18px; 
-            border: 2px solid #fce7f3;
-            border-radius: 12px;
-            font-size: 16px;
-            font-family: 'Georgia', serif;
-            margin: 12px 0;
-            background: #faf5ff;
-            color: #831843;
-            transition: border-color 0.3s;
-        }
-        #name:focus, #answerInput:focus { 
-            outline: none; 
-            border-color: #ec4899;
-            background: #fff;
-        }
-        button { 
-            background: linear-gradient(135deg, #ec4899 0%, #d946a6 100%);
-            color: white; 
-            border: none; 
-            padding: 12px 28px; 
-            border-radius: 10px;
-            font-size: 15px;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            font-family: 'Georgia', serif;
-            margin-top: 12px;
-            width: 100%;
-        }
-        button:hover:not(:disabled) { 
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(236, 72, 153, 0.3);
-        }
-        button:disabled { 
-            opacity: 0.6; 
-            cursor: not-allowed;
-        }
-        #gameArea {
-            background: white;
-            padding: 60px 40px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(236, 72, 153, 0.15);
-            text-align: center;
-        }
-        #gameArea h1 {
-            color: #be185d;
-            font-size: 22px;
-            margin-bottom: 20px;
-            font-weight: 400;
-            letter-spacing: 1px;
-        }
-        #questionText { 
-            font-size: 32px; 
-            margin: 30px 0; 
-            color: #831843; 
-            line-height: 1.6;
-            font-weight: 500;
-        }
-        #playerTimer { 
-            font-size: 56px; 
-            color: #ec4899; 
-            margin: 25px 0; 
-            font-weight: 700;
-            font-family: 'Courier New', monospace;
-        }
-        #feedback { 
-            margin-top: 25px; 
-            padding: 20px; 
-            border-radius: 12px; 
-            display: none; 
-            font-size: 15px;
-        }
-        #playerScore { 
-            font-size: 18px; 
-            color: #a78bfa; 
-            margin-top: 30px;
-            font-style: italic;
-        }
-        .symbol { opacity: 0.6; }
+        
+        .avatar-grid { display: flex; gap: 10px; justify-content: center; margin: 15px 0; }
+        .avatar-opt { font-size: 2rem; cursor: pointer; padding: 8px; border: 2px solid transparent; border-radius: 14px; transition: all 0.2s; background: #faf5ff; }
+        .avatar-opt:hover { transform: scale(1.1); background: #fce7f3; }
+        .avatar-opt.selected { border-color: #ec4899; background: #fff5f8; transform: scale(1.15); }
+
+        #name, #roomCode, #answerInput { width: 100%; padding: 14px 18px; border: 2px solid #fce7f3; border-radius: 12px; font-size: 16px; margin: 10px 0; background: #faf5ff; color: #831843; }
+        #name:focus, #roomCode:focus, #answerInput:focus { outline: none; border-color: #ec4899; background: #fff; }
+        
+        button { background: linear-gradient(135deg, #ec4899 0%, #d946a6 100%); color: white; border: none; padding: 14px 28px; border-radius: 12px; font-size: 16px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
+        .leave-btn { background: #fee2e2; color: #ef4444; margin-top: 25px; padding: 8px; font-size: 12px; border-radius: 8px; font-weight: normal; width: auto; display: inline-block; }
+
+        #questionText { font-size: 2rem; margin: 20px 0; color: #831843; font-weight: 600; }
+        
+        /* 🔬 POPRAWIONY KONTENER NA SZPILKI DLA GRACZA */
+        .player-img-container { max-width: 100%; margin: 15px auto; display: none; border-radius: 16px; overflow: hidden; border: 2px solid #fce7f3; background: #fff; }
+        .player-img-container img { max-width: 100%; max-height: 300px; display: block; margin: 0 auto; object-fit: contain; }
+
+        #playerTimer { font-size: 3.5rem; color: #ec4899; font-weight: 800; font-family: monospace; }
+        #feedback { margin-top: 25px; padding: 20px; border-radius: 12px; display: none; font-size: 16px; font-weight: bold; }
+        #playerScore { font-size: 18px; color: #a78bfa; margin-top: 30px; font-style: italic; font-weight: bold; }
     </style>
 </head>
-
 <body>
     <div class="container">
         <div id="joinArea">
             <h1>✦ anki.party ✦</h1>
-            <div class="subtitle">‧₊˚ ⋅ enter your name</div>
-            <input id="name" placeholder="Your name" type="text">
-            <button onclick="join()">Join Game</button>
+            <div class="subtitle">‧₊˚ ⋅ choose your animal profile ₍ᐢ. ̫ .ᐢ₎</div>
+            
+            <div class="avatar-grid">
+                <span class="avatar-opt selected" onclick="selectAvatar(this, '🐮')">🐮</span>
+                <span class="avatar-opt" onclick="selectAvatar(this, '🐷')">🐷</span>
+                <span class="avatar-opt" onclick="selectAvatar(this, '🐔')">🐔</span>
+                <span class="avatar-opt" onclick="selectAvatar(this, '🦊')">🦊</span>
+                <span class="avatar-opt" onclick="selectAvatar(this, '🐰')">🐰</span>
+                <span class="avatar-opt" onclick="selectAvatar(this, '🐱')">🐱</span>
+            </div>
+
+            <input id="name" placeholder="Your nickname" type="text">
+            <input id="roomCode" placeholder="Room Code" type="text">
+            <button onclick="join()">Join Party! 🚀</button>
         </div>
 
-        <div id="gameArea" class="game-view">
-            <h1>✦ Question ✦</h1>
+        <div id="gameArea">
+            <div id="playerTimer">40s</div>
+            
+            <div id="pImgContainer" class="player-img-container">
+                <img id="pImg" alt="Fiszka">
+            </div>
+
             <div id="questionText"></div>
-            <div id="playerTimer"></div>
-            <input id="answerInput" placeholder="Your answer" type="text">
-            <button id="submitBtn" onclick="send()">Submit Answer</button>
+            <input id="answerInput" placeholder="Type your answer..." type="text">
+            <button id="submitBtn" onclick="send()">Submit answer ✧</button>
             <div id="feedback"></div>
-            <div id="playerScore"><span class="symbol">♡</span> Score: <span id="playerScoreValue">0</span></div>
+            <div id="playerScore">♡ Score: <span id="playerScoreValue">0</span></div>
+            
+            <button class="leave-btn" onclick="leaveMatch()">Leave game 🚪</button>
         </div>
     </div>
 

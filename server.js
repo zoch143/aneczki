@@ -4,389 +4,340 @@ const { Server } = require("socket.io");
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-const AdmZip = require('adm-zip');
-const initSqlJs = require('sql.js');
-let SQL = null;
-initSqlJs().then((mod) => { SQL = mod; }).catch(err => { console.error('sql.js init failed', err); });
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// log incoming HTTP requests for debugging
-app.use((req, res, next) => {
-    console.log(new Date().toISOString(), req.method, req.url);
-    next();
-});
+let rooms = {}; 
+let socketToRoom = {}; 
 
-// simple health endpoint
-app.get('/status', (req, res) => res.json({ ok: true }));
-
-// serve static files (we’ll add pages later)
-app.use(express.static("public"));
-
-// ensure uploads dir exists
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadsDir);
-    },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + '-' + file.originalname);
-    }
-});
-
-const upload = multer({ storage });
-
-let players = {};
-let scores = {};
-let currentDeckPath = null;
-let currentDeck = [];
-let gameActive = false;
-let questionIndex = -1;
-let currentQuestion = null; // { id, question, answer, startTime }
-let answersReceived = {}; // name -> true
-let questionTimeLimit = 30; // seconds
-let questionTimer = null;
-
-async function parseApkg(apkgPath) {
-    try {
-        if (!SQL) {
-            SQL = await initSqlJs();
-        }
-        const zip = new AdmZip(apkgPath);
-        const entries = zip.getEntries();
-        const collEntry = entries.find(e => e.entryName.includes('collection') && e.entryName.endsWith('.anki2'))
-            || entries.find(e => e.entryName === 'collection.anki2')
-            || entries.find(e => e.entryName.includes('collection'));
-
-        if (!collEntry) {
-            console.warn('No collection file found inside apkg');
-            return [];
-        }
-
-        const buf = collEntry.getData();
-        const uint8 = new Uint8Array(buf);
-        const db = new SQL.Database(uint8);
-        const res = db.exec('SELECT id, flds FROM notes');
-        const cards = [];
-        if (res.length && res[0].values) {
-            for (const v of res[0].values) {
-                const id = v[0];
-                const flds = v[1] || '';
-                const fields = flds.split('\x1f');
-                const question = (fields[0] || '').replace(/\r|\n/g, ' ').trim();
-                const answer = (fields[1] || '').replace(/\r|\n/g, ' ').trim();
-                if (question) cards.push({ id, question, answer });
-            }
-        }
-        try { if (db.close) db.close(); } catch (e) {}
-
-        // Filter out image-occlusion and cloze-type cards (skip if they contain images or cloze markers)
-        const filtered = cards.filter(c => {
-            const q = (c.question || '').toLowerCase();
-            const a = (c.answer || '').toLowerCase();
-            if (!c.question) return false;
-            if (q.includes('<img') || a.includes('<img')) return false;
-            if (q.includes('occlusion') || a.includes('occlusion') || q.includes('image occlusion') || a.includes('image occlusion')) return false;
-            if (q.includes('{{c') || a.includes('{{c') || q.includes('cloze') || a.includes('cloze')) return false;
-            return true;
-        });
-
-        console.log(`Cards found: ${cards.length}, after filter: ${filtered.length}`);
-        return filtered;
-    } catch (err) {
-        console.error('Failed to parse apkg:', err);
-        return [];
-    }
+function generateRoomCode() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 4; i++) { code += chars[Math.floor(Math.random() * chars.length)]; }
+    return code;
 }
 
+const uploadsDir = path.join(__dirname, 'uploads');
+const mediaDir = path.join(__dirname, 'public', 'media');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
+if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+const upload = multer({ storage });
+
+app.use(express.static("public"));
+
+// Oczyszczanie wpisanej odpowiedzi gracza do porównania
+function normalize(s) {
+    return String(s || '')
+        .replace(/<[^>]+>/g, '') 
+        .replace(/[^\w\s]/g, '') 
+        .replace(/\s+/g, ' ')    
+        .trim()
+        .toLowerCase();
+}
+
+function levenshtein(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            matrix[i][j] = b.charAt(i - 1) === a.charAt(j - 1) 
+                ? matrix[i - 1][j - 1] 
+                : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
+function wordScore(given, expected) {
+    const givenWords = new Set(given.split(" "));
+    const expectedWords = expected.split(" ");
+    let matchCount = 0;
+    for (const word of expectedWords) { if (givenWords.has(word)) matchCount++; }
+    return matchCount / expectedWords.length;
+}
+
+// 🎯 BEZBŁĘDNE WYCIĄGANIE NAZWY OBRAZKA ODPORNE NA "" Z ANKI
+function extractImageSrc(html) {
+    if (!html) return null;
+    
+    // Łapie zawartość src bez względu na liczbę cudzysłowów wokół
+    const match = html.match(/src=\s*["']*(?:""|")?([^"'>]+)/i);
+    if (match) {
+        return match[1]
+            .replace(/""/g, '')
+            .replace(/["'>]/g, '')
+            .toLowerCase()
+            .replace(/ó/g, 'o')
+            .replace(/ł/g, 'l')
+            .replace(/ą/g, 'a')
+            .replace(/ę/g, 'e')
+            .replace(/ś/g, 's')
+            .replace(/ź/g, 'z')
+            .replace(/ż/g, 'z')
+            .replace(/ć/g, 'c')
+            .replace(/ń/g, 'n')
+            .replace(/\s+/g, '_') // Zamienia spacje na "_" identycznie jak Twój PowerShell!
+            .trim();
+    }
+    return null;
+}
+
+// GŁÓWNY SILNIK PARSOWANIA TALII TEKSTOWEJ
 function parseTextFile(txtPath) {
     try {
         const content = fs.readFileSync(txtPath, 'utf8');
         const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
         const cards = [];
-        const separators = ['|||','---','—',':::', '::','->','=>',' ||| ',' // ','|',' - ',' — ',';',' ; '];
+
         for (const line of lines) {
-            // Anki plain text export uses tab-separated fields (front\tback\t...)
-            const parts = line.split('\t');
-            let question = (parts[0] || '').replace(/\r|\n/g, ' ').trim();
-            let answer = (parts[1] || '').replace(/\r|\n/g, ' ').trim();
+            if (line.startsWith('#')) continue; 
 
-            // Heuristic: if answer missing and question contains a separator, split it
-            if (!answer) {
-                for (const sep of separators) {
-                    if (question.includes(sep)) {
-                        const [left, right] = question.split(sep);
-                        if ((left || '').trim() && (right || '').trim()) {
-                            question = left.trim();
-                            answer = right.trim();
-                            break;
-                        }
-                    }
-                }
-            }
+            let parts = line.split('\t');
+            if (parts.length < 2) continue;
 
-            // remove simple labels like 'Answer:' from question if present
-            question = question.replace(/^question\s*[:\-\s]+/i, '').trim();
-            answer = answer.replace(/^answer\s*[:\-\s]+/i, '').trim();
+            let frontSide = parts[0] || '';
+            let backSide = parts[1] || '';
 
-            if (question) cards.push({ id: null, question, answer });
+            // Wyciągamy idealnie dopasowaną do PowerShella nazwę zdjęcia
+            const imageFile = extractImageSrc(frontSide) || extractImageSrc(backSide);
+
+            // Odpowiedź na fiszkę zostaje w 100% naturalna (z pięknymi spacjami i dużymi literami)
+            let question = frontSide.replace(/<[^>]+>/g, '').replace(/^["']|["']$/g, '').replace(/""/g, '"').trim();
+            let answer = backSide.replace(/<[^>]+>/g, '').replace(/^["']|["']$/g, '').replace(/""/g, '"').trim();
+
+            if (!question && imageFile) { question = "Co wskazuje szpilka? 🔬"; }
+            console.log(`[DIAGNOSTYKA] Plik z TXT: "${imageFile}" | Czy istnieje na dysku? ${fs.existsSync(path.join(mediaDir, imageFile || ''))}`);
+            if (answer) { cards.push({ id: null, question, answer, image: imageFile }); }
         }
-        console.log(`Parsed text file with ${cards.length} cards`);
+        console.log(`[Anki Smart Engine] Załadowano ${cards.length} fiszek. Odpowiedzi są bezpieczne! 🌸`);
         return cards;
-    } catch (err) {
-        console.error('Failed to parse text file:', err);
-        return [];
+    } catch (err) { 
+        console.error("Błąd parsowania pliku:", err);
+        return []; 
     }
 }
 
-// upload endpoint for host to send a deck file
-app.post('/upload', upload.single('deck'), async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ success: false, msg: 'No file uploaded' });
-        currentDeckPath = req.file.path;
-        console.log('Deck uploaded:', req.file.path);
-        // attempt to parse the uploaded file
-        const name = (req.file.originalname || '').toLowerCase();
-        if (name.endsWith('.txt') || name.endsWith('.csv')) {
-            currentDeck = parseTextFile(currentDeckPath);
-        } else if (name.endsWith('.apkg') || name.endsWith('.colpkg') || name.endsWith('.zip')) {
-            currentDeck = await parseApkg(currentDeckPath);
-        } else {
-            // try apkg parse as fallback
-            currentDeck = await parseApkg(currentDeckPath);
-        }
-        console.log(`Parsed ${currentDeck.length} cards`);
-        return res.json({ success: true, filename: req.file.originalname, count: currentDeck.length });
-    } catch (err) {
-        console.error('Upload handler error:', err && err.stack ? err.stack : err);
-        return res.status(500).json({ success: false, msg: 'Server error during upload', err: String(err) });
-    }
+// ==========================================
+// 🌐 ENDPOINTY HTTP
+// ==========================================
+app.get("/create-room", (req, res) => {
+    const code = generateRoomCode();
+    rooms[code] = { players: {}, scores: {}, currentDeck: [], gameActive: false, questionIndex: -1, currentQuestion: null, answersReceived: {}, questionTimer: null, questionTimeLimit: 30, gameMode: "classic" };
+    console.log(`Stworzono pokoj: ${code}`);
+    res.json({ roomCode: code });
 });
 
+app.post('/upload', upload.single('deck'), async (req, res) => {
+    try {
+        const roomCode = req.query.room;
+        if (!roomCode || !rooms[roomCode]) return res.status(400).json({ success: false, msg: 'Nieprawidłowy kod pokoju' });
+        if (!req.file) return res.status(400).json({ success: false, msg: 'Brak pliku' });
+        rooms[roomCode].currentDeck = parseTextFile(req.file.path);
+        return res.json({ success: true, count: rooms[roomCode].currentDeck.length });
+    } catch (err) { return res.status(500).json({ success: false, msg: 'Błąd serwera' }); }
+});
+
+// ==========================================
+// 🔌 LOGIKA SOCKET.IO
+// ==========================================
 io.on("connection", (socket) => {
+    socket.on("join", ({ name, roomCode, avatar }) => {
+        roomCode = (roomCode || '').toUpperCase();
+        const room = rooms[roomCode];
+        if (!room) { socket.emit('joinRejected', { msg: 'Pokój nie istnieje' }); return; }
+        if (room.gameActive && name !== "Host") { socket.emit('joinRejected', { msg: 'Gra w tym pokoju już trwa' }); return; }
 
-    console.log("A user connected:", socket.id);
-
-    // broadcast current player count for UI
-    io.emit('players', Object.keys(players).length);
-
-    // when someone joins
-    socket.on("join", (name) => {
-        if (gameActive) {
-            socket.emit('joinRejected', { msg: 'Game has already started' });
-            return;
+        socket.join(roomCode);
+        socketToRoom[socket.id] = roomCode;
+        
+        if (name !== "Host") {
+            room.players[socket.id] = { name, avatar: avatar || "🐮", streak: 0 };
+            room.scores[name] = room.scores[name] || 0;
+        } else {
+            room.players[socket.id] = { name: "Host", avatar: "👑", streak: 0 };
         }
-        players[socket.id] = name;
-        scores[name] = scores[name] || 0;
 
-        io.emit("leaderboard", scores);
-        io.emit('players', Object.keys(players).length);
+        const leaderboardData = Object.keys(room.scores).map(pName => {
+            const pSocketId = Object.keys(room.players).find(id => room.players[id].name === pName);
+            return { name: pName, score: room.scores[pName], avatar: pSocketId ? room.players[pSocketId].avatar : "🐮", streak: pSocketId ? room.players[pSocketId].streak : 0 };
+        });
+
+        io.to(roomCode).emit("leaderboard", leaderboardData);
+        io.to(roomCode).emit('players', Object.keys(room.players).filter(id => room.players[id].name !== "Host").length);
     });
 
-    // when someone sends an answer
     socket.on("answer", (data) => {
-        const name = players[socket.id];
-        if (!name) return;
-        if (!gameActive || !currentQuestion) return;
-        if (answersReceived[name]) return; // ignore multiple answers
-        const answer = (data && data.answer) ? String(data.answer) : '';
-        const receivedAt = Date.now();
-        const responseMs = receivedAt - currentQuestion.startTime;
+        const roomCode = socketToRoom[socket.id];
+        if (!roomCode || !rooms[roomCode]) return;
+        
+        const room = rooms[roomCode];
+        const pData = room.players[socket.id];
+        if (!pData || !room.gameActive || !room.currentQuestion || room.answersReceived[pData.name]) return;
 
-        function normalize(s) {
-    return String(s || '')
-        .replace(/<[^>]+>/g, '')
-        .replace(/[^\w\s]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .toLowerCase();
-}
-
-        function levenshtein(a, b) {
-            if (a.length === 0) return b.length;
-            if (b.length === 0) return a.length;
-            const matrix = [];
-            for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-            for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-            for (let i = 1; i <= b.length; i++) {
-                for (let j = 1; j <= a.length; j++) {
-                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
-                        matrix[i][j] = matrix[i - 1][j - 1];
-                    } else {
-                        matrix[i][j] = Math.min(
-                            matrix[i - 1][j - 1] + 1,
-                            matrix[i][j - 1] + 1,
-                            matrix[i - 1][j] + 1
-                        );
-                    }
-                }
-            }
-            return matrix[b.length][a.length];
-        }
-        function wordScore(given, expected) {
-    const givenWords = new Set(given.split(" "));
-    const expectedWords = expected.split(" ");
-
-    let matchCount = 0;
-
-    for (const word of expectedWords) {
-        if (givenWords.has(word)) {
-            matchCount++;
-        }
-    }
-
-    return matchCount / expectedWords.length;
-}
-
+        const answer = data && data.answer ? String(data.answer) : '';
+        const responseMs = Date.now() - room.currentQuestion.startTime;
         const given = normalize(answer);
-        const expected = normalize(currentQuestion.answer);
+        const expected = normalize(room.currentQuestion.answer);
 
         let points = 0;
-        let correct = false;
+        let isPerfect = false;
 
-        if (expected && given === expected) {
-            // Perfect match: base 100, time bonus scales with speed (max +100 for <5s)
-            const timeBonus = Math.max(0, 100 - Math.floor(responseMs / 50));
-            points = 100 + timeBonus;
-            correct = true;
-        }} else if (expected && given) {
-    const distance = levenshtein(given, expected);
-    const similarity = 1 - (distance / Math.max(given.length, expected.length));
-
-    if (similarity > 0.85) {
-        const timeBonus = Math.max(0, 75 - Math.floor(responseMs / 75));
-        points = Math.floor(75 + timeBonus);
-        correct = true;
-    } else {
-        const overlap = wordScore(given, expected);
-
-        if (overlap >= 0.3) {
-            const timeBonus = Math.max(0, 40 - Math.floor(responseMs / 100));
-
-            points = Math.floor(overlap * 60 + timeBonus);
-            correct = true;
-        }
-    }
-}
-
-        answersReceived[name] = true;
-        if (points > 0) {
-            scores[name] = (scores[name] || 0) + points;
-        }
-
-        // acknowledge to player (don't send expected answer to players)
-        socket.emit('answerResult', { correct, points, responseMs });
-
-        // update leaderboard
-        io.emit('leaderboard', scores);
-        console.log(`Answer from ${name}: "${answer}" -> ${points} pts (expected: "${currentQuestion.answer}")`);
-        
-        // Check if all connected players have answered
-        const playersCount = Object.keys(players).length;
-        const answeredCount = Object.keys(answersReceived).length;
-        console.log(`Answers received: ${answeredCount}/${playersCount}`);
-        
-        if (playersCount > 0 && answeredCount >= playersCount) {
-            console.log('All players answered!');
-            if (questionTimer) clearTimeout(questionTimer);
-            io.emit('allAnswered', { question: currentQuestion.question, answer: currentQuestion.answer });
-            answersReceived = {};
-        }
-    });
-
-    // host gives points manually (for now)
-    socket.on("addPoint", (name) => {
-        scores[name] = (scores[name] || 0) + 1;
-        io.emit("leaderboard", scores);
-    });
-
-    socket.on("disconnect", () => {
-        delete players[socket.id];
-        io.emit('players', Object.keys(players).length);
-    });
-    // host controls
-    socket.on('host:start', (data) => {
-        console.log('Received host:start from', socket.id);
-        if (!currentDeck || !currentDeck.length) {
-            console.log('host:start rejected - no deck loaded');
-            socket.emit('server:status', { ok: false, msg: 'No deck loaded' });
-            return;
-        }
-        gameActive = true;
-        questionIndex = -1;
-        currentQuestion = null;
-        answersReceived = {};
-        
-        // Set time limit from host input
-        if (data && data.timeLimit) {
-            questionTimeLimit = Math.max(5, Math.min(300, parseInt(data.timeLimit) || 30));
+        if (room.gameMode === "vocab") {
+            const typos = levenshtein(given, expected);
+            if (typos === 0 && given.length > 0) { points = 100 + Math.max(0, 100 - Math.floor(responseMs / 50)); isPerfect = true; } 
+            else if (typos === 1) { points = 75 + Math.max(0, 75 - Math.floor(responseMs / 75)); } 
+            else if (typos === 2) { points = 50 + Math.max(0, 50 - Math.floor(responseMs / 100)); } 
+            else if (typos === 3) { points = 25 + Math.max(0, 25 - Math.floor(responseMs / 150)); }
         } else {
-            questionTimeLimit = 30;
+            if (expected && given === expected) { points = 100 + Math.max(0, 100 - Math.floor(responseMs / 50)); isPerfect = true; } 
+            else if (expected && given) {
+                const distance = levenshtein(given, expected);
+                const similarity = 1 - (distance / Math.max(given.length, expected.length));
+                if (similarity > 0.85) { points = Math.floor(75 + Math.max(0, 75 - Math.floor(responseMs / 75))); } 
+                else {
+                    const overlap = wordScore(given, expected);
+                    if (overlap >= 0.3) { points = Math.floor(overlap * 60 + Math.max(0, 40 - Math.floor(responseMs / 100))); }
+                }
+            }
         }
-        
-        io.emit('gameStarted', { timeLimit: questionTimeLimit });
-        socket.emit('server:status', { ok: true, msg: 'Game started' });
-        console.log('Game started by host with', questionTimeLimit, 'sec per question');
+
+        if (isPerfect) { pData.streak++; points += (pData.streak * 20); } else { pData.streak = 0; }
+        room.answersReceived[pData.name] = true;
+        if (points > 0) room.scores[pData.name] = (room.scores[pData.name] || 0) + points;
+
+        socket.emit('answerResult', { correct: isPerfect || points > 0, isPerfect, points, responseMs, streak: pData.streak });
+
+        const leaderboardData = Object.keys(room.scores).map(pName => {
+            const pSocketId = Object.keys(room.players).find(id => room.players[id].name === pName);
+            return { name: pName, score: room.scores[pName], avatar: pSocketId ? room.players[pSocketId].avatar : "🐮", streak: pSocketId ? room.players[pSocketId].streak : 0 };
+        });
+
+        io.to(roomCode).emit('leaderboard', leaderboardData);
+
+        const totalPlayers = Object.values(room.players).filter(p => p.name !== "Host").length;
+        const totalAnswers = Object.keys(room.answersReceived).filter(n => n !== "Host").length;
+        io.to(roomCode).emit('answerProgress', { answered: totalAnswers, total: totalPlayers });
+
+        if (totalPlayers > 0 && totalAnswers >= totalPlayers) {
+            if (room.questionTimer) clearTimeout(room.questionTimer);
+            io.to(roomCode).emit('allAnswered', { question: room.currentQuestion.question, answer: room.currentQuestion.answer });
+            room.answersReceived = {};
+        }
+    });
+
+    socket.on("leaveGame", () => { disconnectSocket(socket); });
+    socket.on("disconnect", () => { disconnectSocket(socket); });
+
+    socket.on('host:start', (data) => {
+        const roomCode = socketToRoom[socket.id];
+        const room = rooms[roomCode];
+        if (!room || !room.currentDeck.length) { socket.emit('server:status', { ok: false, msg: 'Brak kart w pokoju!' }); return; }
+
+        room.gameActive = true;
+        room.questionIndex = -1;
+        room.currentQuestion = null;
+        room.answersReceived = {};
+        room.questionTimeLimit = data && data.timeLimit ? Math.max(5, Math.min(300, parseInt(data.timeLimit))) : 30;
+        room.gameMode = data && data.gameMode ? data.gameMode : "classic";
+
+        let deckToPlay = [...room.currentDeck];
+        for (let i = deckToPlay.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [deckToPlay[i], deckToPlay[j]] = [deckToPlay[j], deckToPlay[i]];
+        }
+        const maxQ = data && data.maxQuestions ? parseInt(data.maxQuestions) : 20;
+        room.currentDeck = deckToPlay.slice(0, maxQ);
+
+        io.to(roomCode).emit('gameStarted', { timeLimit: room.questionTimeLimit });
     });
 
     socket.on('host:next', () => {
-        console.log('Received host:next from', socket.id);
-        if (!gameActive) {
-            socket.emit('server:status', { ok: false, msg: 'Game not active. Click Start first.' });
-            console.log('host:next rejected - game not active');
+        const roomCode = socketToRoom[socket.id];
+        const room = rooms[roomCode];
+        if (!room || !room.gameActive || !room.currentDeck.length) return;
+
+        if (room.questionIndex + 1 >= room.currentDeck.length) {
+            if (room.questionTimer) clearTimeout(room.questionTimer);
+            room.gameActive = false;
+            sendFinalLeaderboard(roomCode);
             return;
         }
-        if (!currentDeck || !currentDeck.length) {
-            socket.emit('server:status', { ok: false, msg: 'No cards available' });
-            console.log('host:next rejected - no cards');
-            return;
-        }
+
+        if (room.questionTimer) clearTimeout(room.questionTimer);
+        room.questionIndex++;
+        const card = room.currentDeck[room.questionIndex];
         
-        // Clear previous timer
-        if (questionTimer) clearTimeout(questionTimer);
+        room.currentQuestion = { id: null, question: card.question, answer: card.answer, image: card.image, startTime: Date.now() };
+        room.answersReceived = {};
+
+        const totalPlayers = Object.values(room.players).filter(p => p.name !== "Host").length;
+        io.to(roomCode).emit('answerProgress', { answered: 0, total: totalPlayers });
         
-        questionIndex = (questionIndex + 1) % currentDeck.length;
-        const card = currentDeck[questionIndex];
-        const startTime = Date.now();
-        currentQuestion = { id: card.id, question: card.question, answer: card.answer, startTime };
-        answersReceived = {};
-        
-        io.emit('question', { question: currentQuestion.question, index: questionIndex, timeLimit: questionTimeLimit });
-        socket.emit('server:status', { ok: true, msg: `Question ${questionIndex} sent` });
-        console.log(`Broadcasted question ${questionIndex}`);
-        
-        // Auto-close answers and emit result after time limit
-        questionTimer = setTimeout(() => {
-            console.log('Time up for question', questionIndex);
-            io.emit('timeUp', { question: currentQuestion.question, answer: currentQuestion.answer });
-            answersReceived = {}; // Reset so no more answers accepted
-        }, questionTimeLimit * 1000);
+        io.to(roomCode).emit('question', { 
+            question: room.currentQuestion.question, 
+            index: room.questionIndex, 
+            totalCards: room.currentDeck.length, 
+            timeLimit: room.questionTimeLimit,
+            image: room.currentQuestion.image 
+        });
+
+        room.questionTimer = setTimeout(() => {
+            io.to(roomCode).emit('timeUp', { question: room.currentQuestion.question, answer: room.currentQuestion.answer });
+            room.answersReceived = {};
+        }, room.questionTimeLimit * 1000);
     });
 
-    socket.on('host:clearScores', () => {
-        console.log('Clearing leaderboard');
-        scores = {};
-        Object.keys(players).forEach(pid => {
-            const name = players[pid];
-            scores[name] = 0;
-        });
-        io.emit('leaderboard', scores);
+    socket.on('host:stop', () => {
+        const roomCode = socketToRoom[socket.id];
+        const room = rooms[roomCode];
+        if (!room || !room.gameActive || !room.currentQuestion) return;
+        if (room.questionTimer) clearTimeout(room.questionTimer);
+        io.to(roomCode).emit('timeUp', { question: room.currentQuestion.question, answer: room.currentQuestion.answer });
+        room.answersReceived = {}; 
     });
 
     socket.on('host:endGame', () => {
-        console.log('Game ended by host');
-        gameActive = false;
-        if (questionTimer) clearTimeout(questionTimer);
-        io.emit('gameEnded');
+        const roomCode = socketToRoom[socket.id];
+        if (roomCode) sendFinalLeaderboard(roomCode);
     });
 });
 
-const PORT = process.env.PORT || 3000;
+function disconnectSocket(socket) {
+    const roomCode = socketToRoom[socket.id];
+    if (roomCode && rooms[roomCode]) {
+        const room = rooms[roomCode];
+        const pData = room.players[socket.id];
+        if (pData) { delete room.players[socket.id]; if (pData.name !== "Host") delete room.scores[pData.name]; }
+        delete socketToRoom[socket.id];
 
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+        const leaderboardData = Object.keys(room.scores).map(pName => {
+            const pSocketId = Object.keys(room.players).find(id => room.players[id].name === pName);
+            return { name: pName, score: room.scores[pName], avatar: pSocketId ? room.players[pSocketId].avatar : "🐮", streak: pSocketId ? room.players[pSocketId].streak : 0 };
+        });
+        io.to(roomCode).emit("leaderboard", leaderboardData);
+        io.to(roomCode).emit('players', Object.keys(room.players).filter(id => room.players[id].name !== "Host").length);
+        if (Object.keys(room.players).length === 0) { if (room.questionTimer) clearTimeout(room.questionTimer); delete rooms[roomCode]; }
+    }
+}
+
+function sendFinalLeaderboard(roomCode) {
+    const room = rooms[roomCode]; if (!room) return; room.gameActive = false;
+    const finalData = Object.keys(room.scores).map(pName => {
+        const pSocketId = Object.keys(room.players).find(id => room.players[id].name === pName);
+        return { name: pName, score: room.scores[pName], avatar: pSocketId ? room.players[pSocketId].avatar : "🐮" };
+    });
+    io.to(roomCode).emit('gameEnded', finalData);
+}
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Serwer Anki Smart Engine działa na porcie ${PORT} 🚀`));

@@ -2,17 +2,103 @@
 <html>
 <head>
     <title>Anki Party</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Georgia', serif; 
+            background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container { 
+            max-width: 800px; 
+            width: 100%; 
+            text-align: center;
+        }
+        h1 { 
+            color: #be185d; 
+            font-size: 3rem; 
+            margin-bottom: 10px; 
+            font-weight: 400; 
+            letter-spacing: 2px;
+            text-shadow: 0 4px 10px rgba(236, 72, 153, 0.1);
+        }
+        .subtitle { 
+            color: #a78bfa; 
+            font-size: 1.1rem; 
+            margin-bottom: 40px;
+            font-style: italic;
+        }
+        .cards-grid {
+            display: flex;
+            gap: 25px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .card {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(236, 72, 153, 0.1);
+            width: 280px;
+            text-decoration: none;
+            transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+            border: 2px solid transparent;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 40px rgba(236, 72, 153, 0.2);
+        }
+        .card-host { border-color: #fce7f3; }
+        .card-host:hover { border-color: #ec4899; }
+        .card-player { border-color: #f3e8ff; }
+        .card-player:hover { border-color: #a78bfa; }
+
+        .icon {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+        }
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        .card-host .card-title { color: #be185d; }
+        .card-player .card-title { color: #6d28d9; }
+
+        .card-desc {
+            font-size: 0.9rem;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+    </style>
 </head>
+<body>
 
-<body style="font-family: Arial; text-align: center;">
+    <div class="container">
+        <h1>🎮 anki.party</h1>
+        <div class="subtitle">Server is running beautifully ✨</div>
 
-    <h1>🎮 Anki Party</h1>
+        <div class="cards-grid">
+            <a href="/host.html" class="card card-host">
+                <div class="icon">👑</div>
+                <div class="card-title">Enter as Host</div>
+                <div class="card-desc">Create a room, upload your flashcards, and control the quiz timer.</div>
+            </a>
 
-    <p>Server is working 🎉</p>
-
-    <a href="/host.html">Go to Host</a>
-    <br><br>
-    <a href="/player.html">Go to Player</a>
+            <a href="/player.html" class="card card-player">
+                <div class="icon">✨</div>
+                <div class="card-title">Enter as Player</div>
+                <div class="card-desc">Join an existing room using a code, type answers, and climb the leaderboard.</div>
+            </a>
+        </div>
+    </div>
 
 </body>
 </html>

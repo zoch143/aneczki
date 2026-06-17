@@ -12,10 +12,11 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "adm-zip": "^0.5.9",
+    "better-sqlite3": "^12.11.1",
     "express": "^5.2.1",
     "multer": "^2.1.1",
     "socket.io": "^4.8.3",
-    "adm-zip": "^0.5.9",
     "sql.js": "^1.8.0"
   }
 }
