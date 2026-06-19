@@ -92,15 +92,15 @@ socket.on('answerResult', (result) => {
     if (result.isPerfect) {
         feedback.style.backgroundColor = '#d1fae5';
         feedback.style.color = '#065f46';
-        feedback.innerHTML = `＼(≧▽≦)／ Perfect 100%! +${result.points} pts ${streakMsg}`;
+        feedback.innerHTML = ` Brawo! 100% dobrze +${result.points} pts ${streakMsg}`;
     } else if (result.correct) {
         feedback.style.backgroundColor = '#fef3c7';
         feedback.style.color = '#92400e';
-        feedback.innerHTML = `✧ Close! Good enough: +${result.points} pts (Streak reset 🌸)`;
+        feedback.innerHTML = `Blisko! +${result.points} pts `;
     } else {
         feedback.style.backgroundColor = '#fee2e2';
         feedback.style.color = '#991b1b';
-        feedback.innerHTML = `✦ (｡•́︿•̀｡) Incorrect! +0 pts (Streak reset 🌸)`;
+        feedback.innerHTML = `Źle!! +0 pts `;
     }
     feedback.style.display = 'block';
 });
@@ -117,14 +117,14 @@ socket.on('leaderboard', (playersList) => {
 
 socket.on('timeUp', () => {
     if (timerInterval) clearInterval(timerInterval);
-    document.getElementById('playerTimer').textContent = "Time's up!";
+    document.getElementById('playerTimer').textContent = "Koniec czasu!";
     document.getElementById('submitBtn').disabled = true;
     document.getElementById('answerInput').disabled = true;
 });
 
 socket.on('allAnswered', () => {
     if (timerInterval) clearInterval(timerInterval);
-    document.getElementById('playerTimer').textContent = 'All clear!';
+    document.getElementById('playerTimer').textContent = 'Wszystkie odpowiedzi wysłane!';
     document.getElementById('submitBtn').disabled = true;
     document.getElementById('answerInput').disabled = true;
 });
@@ -137,12 +137,12 @@ socket.on('gameEnded', (sortedData) => {
     const gameArea = document.getElementById('gameArea');
     if (gameArea) {
         gameArea.innerHTML = `
-            <h1 style="font-size: 2.2rem; color:#db2777; margin-bottom:20px;">👑 MATCH FINISHED! 👑</h1>
-            <p style="font-size: 1.4rem; color:#581c87; margin-bottom: 25px;">Final Score: <b>${currentScore} pts</b></p>
+            <h1 style="font-size: 2.2rem; color:#db2777; margin-bottom:20px;">👑 Koniec gry! 👑</h1>
+            <p style="font-size: 1.4rem; color:#581c87; margin-bottom: 25px;">Osiągnięty wynik: <b>${currentScore} pts</b></p>
             <div style="background:#fff5f8; padding: 25px; border-radius:20px; font-size:1.8rem; font-weight:bold; color:#db2777; border: 3px dashed #fbcfe8;">
-                🏆 Final Rank: #${myRank}
+                🏆 Osiągnięte miejsce: #${myRank}
             </div>
-            <p style="margin-top: 35px; font-style:italic; color:#a855f7;">(っ•ᴗ•)っ Poczekaj na kolejny pokój Hosta!</p>
+            <p style="margin-top: 35px; font-style:italic; color:#a855f7;">(っ•ᴗ•)っ</p>
         `;
     }
 });

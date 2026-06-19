@@ -4,6 +4,7 @@ let gameStarted = false;
 let timerInterval = null;
 let timeRemaining = 0;
 let connectedPlayers = 0;
+let autoAdvanceTimeout = null; // Przechowuje odliczanie do automatycznego kolejnego pytania
 
 document.addEventListener('DOMContentLoaded', () => {
     fetch("/create-room")
@@ -83,29 +84,59 @@ socket.on('question', (q) => {
 
 socket.on('answerProgress', (data) => {
     const badge = document.getElementById('progressBadge');
-    if (badge) badge.textContent = `🌸 ${data.answered}/${data.total} answered`;
+    if (badge) badge.textContent = `${data.answered}/${data.total} odpowiedzi`;
 });
 
 socket.on('gameStarted', (data) => {
     gameStarted = true;
-    document.getElementById('preGameArea').classList.add('hidden');
-    document.getElementById('gameArea').classList.add('active');
+    
+    // 1. Najpierw przełączamy klasy widoczności ekranów
+    const preGame = document.getElementById('preGameArea');
+    const gameArea = document.getElementById('gameArea');
+    
+    if (preGame) preGame.classList.add('hidden');
+    if (gameArea) {
+        gameArea.classList.add('active');
+        // Wymuszamy na przeglądarce upewnienie się, że element jest widoczny w DOM
+        gameArea.style.display = 'block'; 
+    }
+    
+    // 2. Na wypadek, gdyby dane pytania przyszły ułamek sekundy wcześniej,
+    // prosimy serwer o ponowne podesłanie aktualnego stanu pierwszej karty (opcjonalne, ale bardzo bezpieczne)
+    socket.emit('host:requestCurrentQuestion'); 
 });
 
 socket.on('players', (count) => {
-    const realPlayersCount = Math.max(0, count - 1);
+    // KORREKTA: Najpierw sprawdźmy, czy serwer przysyła czystą liczbę graczy. 
+    // Jeśli po dołączeniu gracza 'count' wynosi np. 1 lub 2, nie odejmujemy 1.
+    // Na wypadek, gdyby serwer jednak liczył hosta, zostawiamy to łatwe do zmiany:
+    const realPlayersCount = count; // Zmienione z count - 1 na samo count
+
     connectedPlayers = realPlayersCount;
     const el = document.getElementById('playerCount');
     if (!el) return;
-    el.textContent = `٩(◕‿◕)۶ ${realPlayersCount} player${realPlayersCount !== 1 ? 's' : ''} connected`;
+    
+    if (realPlayersCount === 0) {
+        el.innerHTML = `
+            <div style="background: #fffbeb; color: #b45309; padding: 12px 20px; border-radius: 16px; display: inline-flex; align-items: center; gap: 8px; border: 2px solid #fef3c7; font-weight: 700; font-size: 0.95rem;">
+                ⏳ Oczekiwanie na graczy... (0 osób w pokoju)
+            </div>
+        `;
+    } else {
+        el.innerHTML = `
+            <div style="background: #ede9fe; color: #6d28d9; padding: 12px 20px; border-radius: 16px; display: inline-flex; align-items: center; gap: 8px; border: 2px solid #c084fc; font-weight: 700; font-size: 0.95rem; animation: pulse 1s infinite;">
+                👥 Liczba graczy: <span style="font-size: 1.2rem; font-weight: 800; background: #6d28d9; color: white; padding: 2px 10px; border-radius: 20px; margin-left: 4px;">${realPlayersCount}</span>
+            </div>
+        `;
+    }
 });
 
 socket.on('timeUp', (data) => {
-    if (data && data.answer) revealAnswerAndStopTimer(data.answer, "(｡>﹏<｡) Time's up!");
+    if (data && data.answer) revealAnswerAndStopTimer(data.answer, "Koniec czasu!");
 });
 
 socket.on('allAnswered', (data) => {
-    if (data && data.answer) revealAnswerAndStopTimer(data.answer, "＼(≧▽≦)／ All clear!");
+    if (data && data.answer) revealAnswerAndStopTimer(data.answer, "Wszystkie odpowiedzi wysłane!");
 });
 
 function revealAnswerAndStopTimer(answer, statusText) {
@@ -117,8 +148,33 @@ function revealAnswerAndStopTimer(answer, statusText) {
 
     const correctDiv = document.getElementById('correctAnswer');
     if (correctDiv) {
-        correctDiv.innerHTML = `<small>✦ (〃▽〃) Correct Answer ✦</small><div>${answer}</div>`;
+        correctDiv.innerHTML = `<small>✦ (〃▽〃) Poprawna Odpowiedź ✦</small><div>${answer}</div>`;
         correctDiv.style.display = 'block';
+    }
+
+    // LOGIKA AUTOMATYCZNEGO PRZEWIJANIA:
+    // Czyścimy poprzednie odliczanie (na wszelki wypadek)
+    if (autoAdvanceTimeout) clearTimeout(autoAdvanceTimeout);
+
+    const autoAdvanceCheckbox = document.getElementById('autoAdvance');
+    // Sprawdzamy, czy checkbox istnieje i czy jest zaznaczony
+    if (autoAdvanceCheckbox && autoAdvanceCheckbox.checked) {
+        // Zmieniamy tekst licznika, żeby host widział, że zaraz przełączy pytanie
+        if (timerEl) timerEl.innerHTML = `⏱️ Następne za <span id="autoCountdown">10</span>s`;
+        
+        let timeLeftToNext = 10;
+        let countdownInterval = setInterval(() => {
+            timeLeftToNext--;
+            const countEl = document.getElementById('autoCountdown');
+            if (countEl) countEl.textContent = timeLeftToNext;
+            if (timeLeftToNext <= 0) clearInterval(countdownInterval);
+        }, 1000);
+
+        // Po 10 sekundach (10000 ms) automatycznie wywołujemy funkcję przejścia do kolejnej karty
+        autoAdvanceTimeout = setTimeout(() => {
+            clearInterval(countdownInterval);
+            nextQuestion();
+        }, 10000);
     }
 }
 
@@ -163,7 +219,12 @@ function uploadDeck() {
 }
 
 function stopQuestion() { socket.emit('host:stop'); }
-function nextQuestion() { socket.emit('host:next'); }
+function nextQuestion() { 
+    // Jeśli automatyczne odliczanie trwało, anulujemy je, bo host kliknął ręcznie
+    if (autoAdvanceTimeout) clearTimeout(autoAdvanceTimeout);
+    
+    socket.emit('host:next'); 
+}
 function forceEndGame() { if (confirm('Zakończyć grę i pokazać podium?')) { socket.emit('host:endGame'); } }
 
 socket.on('gameEnded', (sortedData) => {
@@ -175,7 +236,7 @@ socket.on('gameEnded', (sortedData) => {
     const finalFullLeaderboard = document.getElementById('finalFullLeaderboard');
     
     podiumVisual.innerHTML = "";
-    finalFullLeaderboard.innerHTML = "<h3>📊 Full scoreboard:</h3><br>";
+    finalFullLeaderboard.innerHTML = "<h5>📊 Punktacja:</h5><br>";
 
     const top1 = sortedData[0]; const top2 = sortedData[1]; const top3 = sortedData[2];
 

@@ -119,7 +119,7 @@ function parseTextFile(txtPath) {
             console.log(`[DIAGNOSTYKA] Plik z TXT: "${imageFile}" | Czy istnieje na dysku? ${fs.existsSync(path.join(mediaDir, imageFile || ''))}`);
             if (answer) { cards.push({ id: null, question, answer, image: imageFile }); }
         }
-        console.log(`[Anki Smart Engine] Załadowano ${cards.length} fiszek. Odpowiedzi są bezpieczne! 🌸`);
+        console.log(`[Anki Smart Engine] Załadowano ${cards.length} fiszek.`);
         return cards;
     } catch (err) { 
         console.error("Błąd parsowania pliku:", err);
@@ -211,7 +211,7 @@ io.on("connection", (socket) => {
             }
         }
 
-        if (isPerfect) { pData.streak++; points += (pData.streak * 20); } else { pData.streak = 0; }
+        if (isPerfect) { pData.streak++; points += (pData.streak * 10); } else { pData.streak = 0; }
         room.answersReceived[pData.name] = true;
         if (points > 0) room.scores[pData.name] = (room.scores[pData.name] || 0) + points;
 
